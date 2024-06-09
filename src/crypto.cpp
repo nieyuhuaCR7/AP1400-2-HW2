@@ -59,23 +59,29 @@ bool crypto::RSAVerifySignature( RSA* rsa,
   EVP_PKEY_assign_RSA(pubKey, rsa);
   EVP_MD_CTX* m_RSAVerifyCtx = EVP_MD_CTX_create();
 
+  std::cout << "Initializing EVP_DigestVerifyInit" << std::endl;
   if (EVP_DigestVerifyInit(m_RSAVerifyCtx,NULL, EVP_sha256(),NULL,pubKey)<=0) {
     return false;
   }
+  std::cout << "Updating digest with message" << std::endl;
   if (EVP_DigestVerifyUpdate(m_RSAVerifyCtx, Msg, MsgLen) <= 0) {
     return false;
   }
+  std::cout << "Finalizing verification" << std::endl;
   int AuthStatus = EVP_DigestVerifyFinal(m_RSAVerifyCtx, MsgHash, MsgHashLen);
   if (AuthStatus==1) {
     *Authentic = true;
+    std::cout << "Signature verified successfully" << std::endl;
     EVP_MD_CTX_free(m_RSAVerifyCtx);
     return true;
   } else if(AuthStatus==0){
     *Authentic = false;
+    std::cout << "Signature verification failed: AuthStatus == 0" << std::endl;
     EVP_MD_CTX_free(m_RSAVerifyCtx);
     return true;
   } else{
     *Authentic = false;
+    std::cerr << "Signature verification failed: AuthStatus < 0" << std::endl;
     EVP_MD_CTX_free(m_RSAVerifyCtx);
     return false;
   }
@@ -138,12 +144,27 @@ void crypto::Base64Decode(const char* b64message, unsigned char** buffer, size_t
 
 bool crypto::verifySignature(std::string publicKey, std::string plainText,  std::string signatureBase64) {
   RSA* publicRSA = createPublicRSA(publicKey);
+  if (!publicRSA) {
+        std::cerr << "Failed to create RSA public key" << std::endl;
+        return false;
+  }
   unsigned char* encMessage;
   size_t encMessageLength;
   bool authentic;
   Base64Decode((char*)signatureBase64.c_str(), &encMessage, &encMessageLength);
-  bool result = RSAVerifySignature(publicRSA, encMessage, encMessageLength, plainText.c_str(), plainText.length(), &authentic);
-  return result & authentic;
+  std::cout << "Decoded signature length: " << encMessageLength << std::endl;
+
+  std::cout << "Public Key: " << publicKey << std::endl;
+  std::cout << "Plain Text: " << plainText << std::endl;
+  // std::cout << "Decoded signature length: " << encMessageLength << std::endl;
+  // bool result = RSAVerifySignature(publicRSA, encMessage, encMessageLength, plainText.c_str(), plainText.length(), &authentic);
+  if (!RSAVerifySignature(publicRSA, encMessage, encMessageLength, plainText.c_str(), plainText.length(), &authentic)) {
+        std::cerr << "Verification failed" << std::endl;
+        return false;
+  }
+  // return result & authentic;
+  std::cout << "Verification result: " << (authentic ? "true" : "false") << std::endl;
+  return authentic;
 }
 
 const char* crypto::keyFromRSA(RSA* rsa, bool isPrivate)
